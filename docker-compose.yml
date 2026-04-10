@@ -1,0 +1,72 @@
+version: "3.9"
+
+# ════════════════════════════════════════════════════════
+#  LOCAL TESTING: Presenton + Telegram Bot
+#  Ishga tushirish: docker compose up --build
+# ════════════════════════════════════════════════════════
+
+services:
+
+  # ── Service 1: Presenton (DeepSeek + Pexels) ──────────
+  presenton:
+    image: ghcr.io/presenton/presenton:latest
+    container_name: presenton
+    ports:
+      - "5000:80"
+    environment:
+      # DeepSeek OpenAI-compatible sozlamasi
+      LLM: "openai"
+      OPENAI_API_KEY: "${DEEPSEEK_API_KEY}"
+      OPENAI_BASE_URL: "https://api.deepseek.com"
+      OPENAI_MODEL: "deepseek-chat"
+
+      # Pexels rasm
+      IMAGE_PROVIDER: "pexels"
+      PEXELS_API_KEY: "${PEXELS_API_KEY}"
+
+      # Foydalanuvchi kalitlarni o'zgartira olmasin
+      CAN_CHANGE_KEYS: "false"
+    volumes:
+      - presenton_data:/app_data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/api/v3/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ── Service 2: Telegram Bot ────────────────────────────
+  bot:
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+    container_name: presenton-bot
+    depends_on:
+      presenton:
+        condition: service_healthy
+    environment:
+      BOT_TOKEN: "${BOT_TOKEN}"
+      # Docker ichida presenton servisiga ulanish
+      PRESENTON_BASE_URL: "http://presenton:80"
+      PRESENTON_API_KEY: ""
+      LOG_LEVEL: "INFO"
+      DEFAULT_SLIDES: "12"
+      DEFAULT_TONE: "professional"
+      DEFAULT_VERBOSITY: "text-heavy"
+      DEFAULT_LANGUAGE: "English"
+      DEFAULT_THEME: "professional-blue"
+      DEFAULT_TEMPLATE: "neo-standard"
+      POLL_INTERVAL_SECONDS: "10"
+      MAX_POLL_ATTEMPTS: "60"
+      REQUEST_TIMEOUT_SECONDS: "300"
+      DROP_PENDING_UPDATES_ON_STARTUP: "true"
+    volumes:
+      - bot_data:/app/data
+      - bot_logs:/app/logs
+    restart: unless-stopped
+
+volumes:
+  presenton_data:
+  bot_data:
+  bot_logs:
